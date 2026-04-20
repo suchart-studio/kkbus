@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Songthaew KKC Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // 1. ตั้งค่า Firebase (เอาค่าจาก Firebase Console ของคุณมาใส่)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "YOUR_PROJECT_ID",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // 2. ตั้งค่า OpenStreetMap ขอนแก่น
+        // พิกัดใจกลางขอนแก่น: 16.4322, 102.8236
+        const map = L.map('map').setView([16.4322, 102.8236], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 3. กำหนด Custom Icon กระพริบ
+        const pulsingIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: "<div class='songthaew-marker'></div>",
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        // 4. ดึงข้อมูล Realtime จาก Firebase
+        let markers = {};
+        db.ref('locations').on('value', (snapshot) => {
+            const data = snapshot.val();
+            for (let driverId in data) {
+                const { lat, lng } = data[driverId];
+                
+                if (markers[driverId]) {
+                    // ถ้ารถมีอยู่แล้ว ให้อัปเดตตำแหน่ง
+                    markers[driverId].setLatLng([lat, lng]);
+                } else {
+                    // ถ้ารถเพิ่งเข้ามาใหม่ ให้สร้าง Marker
+                    markers[driverId] = L.marker([lat, lng], { icon: pulsingIcon }).addTo(map);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
