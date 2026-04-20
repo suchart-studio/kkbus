@@ -8,16 +8,26 @@
 <body style="text-align: center; padding: 50px; font-family: sans-serif;">
     <h2>ระบบส่งพิกัดรถสองแถว</h2>
     <p>รหัสรถ (สาย): <input type="text" id="driverId" placeholder="เช่น line8-01"></p>
-    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px;">เริ่มแชร์ตำแหน่ง</button>
+    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor:pointer;">เริ่มแชร์ตำแหน่ง</button>
     <p id="status">สถานะ: รอการเชื่อมต่อ...</p>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+        // ใช้ฟังก์ชัน set และ ref เพื่อบันทึกข้อมูล
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
 
-    <script>
-        // ใช้ firebaseConfig เดียวกับด้านบน
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+        const firebaseConfig = {
+            apiKey: "AIzaSyDMMwciq6QoLSaWK6xfdr0U3ynyahtoaSk",
+            authDomain: "studio-a33fe.firebaseapp.com",
+            databaseURL: "https://studio-a33fe-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "studio-a33fe",
+            storageBucket: "studio-a33fe.firebasestorage.app",
+            messagingSenderId: "753539109404",
+            appId: "1:753539109404:web:2df0364770163d24e645d9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
         let watchId;
 
         document.getElementById('startBtn').addEventListener('click', () => {
@@ -27,21 +37,20 @@
             if (navigator.geolocation) {
                 document.getElementById('status').innerText = "สถานะ: กำลังแชร์พิกัด 🟢";
                 
-                // เริ่มติดตามตำแหน่ง
                 watchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
                         
-                        // อัปเดตขึ้น Firebase Realtime Database
-                        db.ref('locations/' + driverId).set({
+                        // รูปแบบการบันทึกข้อมูลของ v12
+                        set(ref(db, 'locations/' + driverId), {
                             lat: lat,
                             lng: lng,
                             timestamp: Date.now()
                         });
                     },
                     (error) => {
-                        document.getElementById('status').innerText = "ข้อผิดพลาด: เปิด GPS ด้วยครับ";
+                        document.getElementById('status').innerText = "ข้อผิดพลาด: โปรดเปิด GPS";
                     },
                     { enableHighAccuracy: true, maximumAge: 0 }
                 );
