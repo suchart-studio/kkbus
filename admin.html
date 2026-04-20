@@ -3,138 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - วาดเส้นทางรถสองแถว</title>
-    
+    <title>Admin - จัดการเส้นทางรถสองแถว</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
-    
     <style>
-        body { margin: 0; font-family: 'Sarabun', sans-serif; display: flex; flex-direction: column; height: 100vh; }
+        body { margin: 0; font-family: 'Sarabun', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 300px; background: #fff; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
         #map { flex-grow: 1; }
-        .admin-panel {
-            padding: 15px;
-            background: #f8f9fa;
-            border-bottom: 2px solid #ddd;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        input, button { padding: 8px; font-size: 14px; }
+        .panel-padding { padding: 15px; border-bottom: 1px solid #eee; }
+        .route-item { padding: 10px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .route-item:hover { background: #f9f9f9; }
+        .color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        input, button { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
         button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
-        button:hover { background: #0056b3; }
-        #status { font-weight: bold; color: green; }
+        .btn-danger { background: #dc3545; margin-top: 2px; padding: 4px; font-size: 12px; }
+        .btn-edit { background: #ffc107; color: #000; margin-top: 2px; padding: 4px; font-size: 12px; }
+        #route-list { overflow-y: auto; flex-grow: 1; }
     </style>
 </head>
 <body>
 
-    <div class="admin-panel">
-        <strong>จัดการเส้นทาง:</strong>
-        <input type="text" id="routeName" placeholder="ชื่อสาย (เช่น สาย 8, สายสีฟ้า)">
-        <button id="saveBtn">บันทึกเส้นทางที่วาด</button>
-        <button id="clearBtn" style="background: #dc3545;">ล้างแผนที่</button>
-        <span id="status"></span>
+    <div id="sidebar">
+        <div class="panel-padding">
+            <strong>📍 จัดการเส้นทาง</strong>
+            <input type="text" id="routeName" placeholder="ชื่อสาย (เช่น สาย 8)">
+            <label style="font-size: 12px; margin-top: 10px; display: block;">เลือกสีเส้นทาง:</label>
+            <input type="color" id="routeColor" value="#ff3b30">
+            <button id="saveBtn" style="margin-top: 15px;">💾 บันทึกเส้นทาง</button>
+            <p id="status" style="font-size: 12px; color: green; margin-top: 5px;"></p>
+        </div>
+        <div id="route-list">
+            </div>
     </div>
 
     <div id="map"></div>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
-    <script>
-        // 1. ตั้งค่า Firebase (ใช้ค่าเดียวกับหน้า User และ Driver)
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
+
+        // ใส่ Config ของคุณตรงนี้
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "YOUR_PROJECT_ID",
+            apiKey: "AIzaSyDMMwciq6QoLSaWK6xfdr0U3ynyahtoaSk",
+            authDomain: "studio-a33fe.firebaseapp.com",
+            databaseURL: "https://studio-a33fe-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "studio-a33fe",
+            storageBucket: "studio-a33fe.firebasestorage.app",
+            messagingSenderId: "753539109404",
+            appId: "1:753539109404:web:2df0364770163d24e645d9"
         };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
 
-        // 2. ตั้งค่าแผนที่
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
         const map = L.map('map').setView([16.4322, 102.8236], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // 3. เตรียม Layer สำหรับวาด
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
-        // 4. เพิ่มเครื่องมือวาด (Leaflet Draw)
         const drawControl = new L.Control.Draw({
-            draw: {
-                polyline: { shapeOptions: { color: '#ff3b30', weight: 5 } },
-                polygon: false,
-                circle: false,
-                marker: false,
-                circlemarker: false,
-                rectangle: false
-            },
-            edit: {
-                featureGroup: drawnItems
-            }
+            draw: { polyline: true, polygon: false, circle: false, marker: false, circlemarker: false, rectangle: false },
+            edit: { featureGroup: drawnItems }
         });
         map.addControl(drawControl);
 
-        // 5. เมื่อวาดเส้นเสร็จ
-        let currentRouteData = null;
+        let currentCoords = null;
 
-        map.on(L.Draw.Event.CREATED, function (event) {
-            const layer = event.layer;
-            drawnItems.clearLayers(); // ให้วาดได้ทีละเส้นเดียวเพื่อความไม่งง
+        // เมื่อวาดเสร็จ
+        map.on(L.Draw.Event.CREATED, (e) => {
+            drawnItems.clearLayers();
+            const layer = e.layer;
             drawnItems.addLayer(layer);
-            
-            // เก็บพิกัด LatLngs ทั้งหมดในรูปแบบ Array
-            currentRouteData = layer.getLatLngs().map(latlng => ({
-                lat: latlng.lat,
-                lng: latlng.lng
-            }));
-            
-            document.getElementById('status').innerText = "วาดเสร็จแล้ว กรุณาใส่ชื่อสายและกดบันทึก";
+            currentCoords = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
         });
 
-        // 6. ฟังก์ชันบันทึกลง Firebase
+        // บันทึกข้อมูล
         document.getElementById('saveBtn').addEventListener('click', () => {
-            const routeName = document.getElementById('routeName').value;
-            
-            if (!routeName) {
-                alert("กรุณาใส่ชื่อสายรถก่อนบันทึก!");
-                return;
-            }
-            if (!currentRouteData) {
-                alert("กรุณาวาดเส้นทางบนแผนที่ก่อน!");
-                return;
-            }
+            const name = document.getElementById('routeName').value;
+            const color = document.getElementById('routeColor').value;
+            if (!name || !currentCoords) return alert("กรุณาวาดเส้นและตั้งชื่อสาย!");
 
-            // บันทึกลง node 'routes'
-            db.ref('routes/' + routeName).set({
-                name: routeName,
-                coords: currentRouteData,
+            set(ref(db, 'routes/' + name), {
+                name: name,
+                color: color,
+                coords: currentCoords,
                 updatedAt: Date.now()
             }).then(() => {
-                document.getElementById('status').innerText = "บันทึก " + routeName + " สำเร็จ! ✅";
+                document.getElementById('status').innerText = "บันทึกสำเร็จ!";
                 document.getElementById('routeName').value = "";
                 drawnItems.clearLayers();
-                currentRouteData = null;
-            }).catch(err => {
-                alert("เกิดข้อผิดพลาด: " + err.message);
+                currentCoords = null;
             });
         });
 
-        document.getElementById('clearBtn').addEventListener('click', () => {
-            drawnItems.clearLayers();
-            currentRouteData = null;
-            document.getElementById('status').innerText = "ล้างข้อมูลการวาดแล้ว";
-        });
+        // ดึงรายการเส้นทางมาแสดง (สำหรับแก้ไข/ลบ)
+        onValue(ref(db, 'routes'), (snapshot) => {
+            const listDiv = document.getElementById('route-list');
+            listDiv.innerHTML = '<div class='panel-padding'><strong>รายการเส้นทางเดิม:</strong></div>';
+            const data = snapshot.val();
+            
+            for (let id in data) {
+                const route = data[id];
+                const item = document.createElement('div');
+                item.className = 'route-item';
+                item.innerHTML = `
+                    <div>
+                        <span class="color-dot" style="background:${route.color}"></span>
+                        <span>${route.name}</span>
+                    </div>
+                    <div>
+                        <button class="btn-edit" onclick="window.editRoute('${id}')">แก้</button>
+                        <button class="btn-danger" onclick="window.deleteRoute('${id}')">ลบ</button>
+                    </div>
+                `;
+                listDiv.appendChild(item);
+            }
 
-        // 7. (Optional) แสดงเส้นทางที่มีอยู่แล้วในระบบ
-        db.ref('routes').on('value', (snapshot) => {
-            const routes = snapshot.val();
-            // คุณอาจจะเขียนฟังก์ชันแสดงเส้นที่มีอยู่แล้วเป็นสีจางๆ เพื่อไม่ให้วาดทับกัน
+            // ฟังก์ชันลบ
+            window.deleteRoute = (id) => {
+                if(confirm('ยืนยันการลบเส้นทาง?')) remove(ref(db, 'routes/' + id));
+            };
+
+            // ฟังก์ชันแก้ไข (ดึงข้อมูลเก่ากลับมาวาด)
+            window.editRoute = (id) => {
+                const route = data[id];
+                document.getElementById('routeName').value = route.name;
+                document.getElementById('routeColor').value = route.color;
+                
+                drawnItems.clearLayers();
+                const latlngs = route.coords.map(c => [c.lat, c.lng]);
+                const polyline = L.polyline(latlngs, { color: route.color });
+                drawnItems.addLayer(polyline);
+                currentCoords = route.coords;
+                map.fitBounds(polyline.getBounds());
+            };
         });
     </script>
 </body>
