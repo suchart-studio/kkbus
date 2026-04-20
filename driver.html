@@ -3,34 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Driver - ระบบส่งพิกัดรถสองแถว</title>
+    <title>Driver - โหมดประหยัดพลังงาน</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Sarabun', sans-serif; margin: 0; padding: 0; background-color: #f0f2f5; display: flex; flex-direction: column; height: 100vh; }
-        .header { background-color: #333; color: white; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; }
+        /* โหมดมืดสนิท (Pitch Black) ช่วยประหยัดแบตเตอรี่หน้าจอ OLED อย่างมาก */
+        body { font-family: 'Sarabun', sans-serif; margin: 0; padding: 0; background-color: #000000; color: #ffffff; display: flex; flex-direction: column; height: 100vh; }
+        .header { background-color: #111; color: #aaa; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; border-bottom: 1px solid #333; }
         .container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; gap: 20px; }
-        label { font-size: 20px; font-weight: 600; color: #444; margin-bottom: -10px; display: block; }
-        input { width: 100%; padding: 20px; font-size: 22px; border: 2px solid #ccc; border-radius: 12px; box-sizing: border-box; text-align: center; font-family: 'Sarabun', sans-serif; }
-        input:focus { border-color: #007bff; outline: none; }
-        button { width: 100%; padding: 25px; font-size: 28px; background: #28a745; color: white; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; box-shadow: 0 8px 15px rgba(0,0,0,0.2); transition: 0.3s; }
-        button:active { transform: scale(0.98); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        button.active-mode { background: #dc3545; animation: pulse-bg 2s infinite; }
-        @keyframes pulse-bg { 0% { background: #dc3545; } 50% { background: #ff4757; } 100% { background: #dc3545; } }
-        .status-box { background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        #statusText { font-size: 22px; font-weight: bold; color: #666; margin: 0; }
-        .footer-note { text-align: center; font-size: 16px; color: #888; padding: 10px; }
+        
+        .status-box { background: #111; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #333; }
+        label { font-size: 18px; font-weight: 600; color: #ccc; display: block; margin-bottom: 10px; }
+        input { width: 100%; padding: 15px; font-size: 20px; background: #222; color: white; border: 1px solid #444; border-radius: 8px; box-sizing: border-box; text-align: center; font-family: 'Sarabun', sans-serif; }
+        input:focus { border-color: #28a745; outline: none; }
+        
+        button { width: 100%; padding: 20px; font-size: 24px; background: #1b5e20; color: #ddd; border: 1px solid #2e7d32; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:active { transform: scale(0.98); }
+        button.active-mode { background: #b71c1c; border-color: #d32f2f; color: #fff; animation: none; /* ปิด animation กระพริบเพื่อลดการประมวลผล GPU */ }
+        
+        #statusText { font-size: 20px; font-weight: bold; color: #888; margin: 0; }
+        #statsText { font-size: 14px; color: #666; margin-top: 10px; font-weight: normal; }
+        
+        .footer-note { text-align: center; font-size: 14px; color: #555; padding: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="header">🚚 แอปคนขับรถสองแถว</div>
+    <div class="header">🔋 โหมดประหยัดพลังงาน & ดาต้า</div>
 
     <div class="container">
         <div class="status-box">
-            <label>ชื่อสายรถ (เช่น สาย 8):</label><br><br>
+            <label>ชื่อสายรถ (เช่น สาย 8):</label>
             <input type="text" id="routeName" placeholder="กรอกชื่อสายรถ">
-            <br><br><br>
-            <label>เลขข้างรถ (เช่น 08-123):</label><br><br>
+            <br><br>
+            <label>เลขข้างรถ (เช่น 08-123):</label>
             <input type="text" id="carNumber" placeholder="กรอกเลขข้างรถ">
         </div>
 
@@ -38,14 +43,14 @@
 
         <div class="status-box">
             <p id="statusText">สถานะ: 🔴 ปิดการทำงาน</p>
+            <p id="statsText">ส่งข้อมูลล่าสุด: ยังไม่มี</p>
         </div>
     </div>
 
-    <div class="footer-note">* ระบบจะป้องกันไม่ให้หน้าจอดับขณะแชร์พิกัด</div>
+    <div class="footer-note">* หน้าจอจะสว่างค้างไว้ แต่เป็นโทนสีดำเพื่อประหยัดแบต</div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-        // เพิ่มฟังก์ชัน remove และ onDisconnect มาใช้งาน
         import { getDatabase, ref, set, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -75,6 +80,24 @@
         let wakeLock = null;
         const driverRef = ref(db, 'locations/' + dId);
 
+        // ตัวแปรสำหรับเช็คการประหยัดเน็ต
+        let lastUpdateTime = 0;
+        let lastLat = null;
+        let lastLng = null;
+        let updatesCount = 0;
+
+        // สูตรคำนวณระยะทางระหว่างจุด 2 จุด (พิกัดโลก) เป็น "เมตร"
+        function getDistanceInMeters(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // รัศมีโลกเป็นเมตร
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
@@ -87,6 +110,7 @@
 
         const startBtn = document.getElementById('startBtn');
         const statusText = document.getElementById('statusText');
+        const statsText = document.getElementById('statsText');
         const routeInput = document.getElementById('routeName');
         const carInput = document.getElementById('carNumber');
 
@@ -94,7 +118,6 @@
             if (!isTracking) {
                 const rName = routeInput.value.trim();
                 const cNum = carInput.value.trim();
-                
                 if(!rName || !cNum) return alert('กรุณากรอกข้อมูลรถให้ครบถ้วน!');
 
                 localStorage.setItem('savedRouteName', rName);
@@ -106,24 +129,50 @@
                     startBtn.classList.add('active-mode');
                     routeInput.disabled = true; carInput.disabled = true;
                     statusText.innerHTML = "สถานะ: 🟢 กำลังส่งพิกัด";
-                    statusText.style.color = "#28a745";
+                    statusText.style.color = "#4caf50";
+                    statsText.innerHTML = "รอพิกัดแรก...";
 
                     await requestWakeLock();
-
-                    // ตั้งค่าให้ลบพิกัดทิ้งเมื่อปิดหน้าจอ/หลุดเชื่อมต่อ (ทำงานโดย Server Firebase อัตโนมัติ)
                     onDisconnect(driverRef).remove();
 
+                    // การตั้งค่า GPS เพื่อประหยัดแบตเตอรี่
                     watchId = navigator.geolocation.watchPosition((pos) => {
+                        const now = Date.now();
+                        const currentLat = pos.coords.latitude;
+                        const currentLng = pos.coords.longitude;
+
+                        // 1. ถ้าส่งครั้งล่าสุดไม่ถึง 5 วินาที ให้ข้ามไป (ลดการใช้ Data)
+                        if (now - lastUpdateTime < 5000) return;
+
+                        // 2. ถ้ารถจอดอยู่ หรือเคลื่อนที่ไม่ถึง 5 เมตร ให้ข้ามไป (รถติดไม่ต้องส่งข้อมูลซ้ำ)
+                        if (lastLat !== null && lastLng !== null) {
+                            const distanceMoved = getDistanceInMeters(lastLat, lastLng, currentLat, currentLng);
+                            if (distanceMoved < 5) return; 
+                        }
+
+                        // หากผ่านเงื่อนไข ให้ส่งข้อมูลขึ้น Firebase
                         set(driverRef, {
                             routeName: rName,
                             carNumber: cNum,
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude,
-                            timestamp: Date.now()
+                            lat: currentLat,
+                            lng: currentLng,
+                            timestamp: now
+                        }).then(() => {
+                            lastUpdateTime = now;
+                            lastLat = currentLat;
+                            lastLng = currentLng;
+                            updatesCount++;
+                            const timeString = new Date().toLocaleTimeString('th-TH');
+                            statsText.innerHTML = `อัปเดตล่าสุด: ${timeString} <br>(ส่งไปแล้ว ${updatesCount} ครั้ง)`;
                         });
+
                     }, (err) => {
-                        alert("กรุณาเปิด GPS!"); stopTracking();
-                    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+                        alert("กรุณาเปิด GPS และอนุญาตตำแหน่ง!"); stopTracking();
+                    }, { 
+                        enableHighAccuracy: true, 
+                        maximumAge: 5000, // อนุญาตให้ใช้พิกัดเก่าได้ในระยะ 5 วินาที (ชิปไม่ต้องทำงานตลอดเวลา)
+                        timeout: 10000 
+                    });
                 }
             } else {
                 stopTracking();
@@ -132,6 +181,8 @@
 
         function stopTracking() {
             isTracking = false;
+            lastLat = null; lastLng = null; lastUpdateTime = 0; updatesCount = 0;
+            
             if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
             if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
             
@@ -139,9 +190,9 @@
             startBtn.classList.remove('active-mode');
             routeInput.disabled = false; carInput.disabled = false;
             statusText.innerHTML = "สถานะ: 🔴 ปิดการทำงาน";
-            statusText.style.color = "#666";
+            statusText.style.color = "#888";
+            statsText.innerHTML = "ส่งข้อมูลล่าสุด: ยกเลิกการแชร์";
 
-            // สั่งยกเลิก onDisconnect และลบพิกัดออกทันทีเมื่อกดปุ่มปิดการทำงาน
             onDisconnect(driverRef).cancel();
             remove(driverRef);
         }
