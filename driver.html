@@ -4,16 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Driver GPS - Songthaew KKC</title>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; text-align: center; padding: 30px; background: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        input { width: 80%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        button { width: 85%; padding: 15px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #status { margin-top: 20px; font-weight: bold; color: #555; }
+    </style>
 </head>
-<body style="text-align: center; padding: 50px; font-family: sans-serif;">
-    <h2>ระบบส่งพิกัดรถสองแถว</h2>
-    <p>รหัสรถ (สาย): <input type="text" id="driverId" placeholder="เช่น line8-01"></p>
-    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px; cursor:pointer;">เริ่มแชร์ตำแหน่ง</button>
-    <p id="status">สถานะ: รอการเชื่อมต่อ...</p>
+<body>
+    <div class="card">
+        <h2>🚚 ส่งพิกัดรถสองแถว</h2>
+        <input type="text" id="routeName" placeholder="ชื่อสาย (เช่น สาย 8)">
+        <input type="text" id="carNumber" placeholder="เลขข้างรถ (เช่น 08-123)">
+        <input type="hidden" id="driverId"> <button id="startBtn">เริ่มแชร์พิกัด</button>
+        <p id="status">สถานะ: ปิดอยู่ 🔴</p>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-        // ใช้ฟังก์ชัน set และ ref เพื่อบันทึกข้อมูล
         import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -28,34 +38,33 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        let watchId;
+        
+        // สร้าง Driver ID แบบสุ่มครั้งเดียว
+        let dId = localStorage.getItem('dId') || 'car-' + Math.floor(Math.random() * 10000);
+        localStorage.setItem('dId', dId);
 
-        document.getElementById('startBtn').addEventListener('click', () => {
-            const driverId = document.getElementById('driverId').value;
-            if(!driverId) return alert('กรุณากรอกรหัสรถ!');
+        document.getElementById('startBtn').addEventListener('click', function() {
+            const rName = document.getElementById('routeName').value;
+            const cNum = document.getElementById('carNumber').value;
+            
+            if(!rName || !cNum) return alert('กรุณากรอกชื่อสายและเลขรถ!');
+
+            this.disabled = true;
+            this.innerText = "กำลังทำงาน...";
+            document.getElementById('status').innerText = "สถานะ: กำลังแชร์พิกัด 🟢";
 
             if (navigator.geolocation) {
-                document.getElementById('status').innerText = "สถานะ: กำลังแชร์พิกัด 🟢";
-                
-                watchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const lat = position.coords.latitude;
-                        const lng = position.coords.longitude;
-                        
-                        // รูปแบบการบันทึกข้อมูลของ v12
-                        set(ref(db, 'locations/' + driverId), {
-                            lat: lat,
-                            lng: lng,
-                            timestamp: Date.now()
-                        });
-                    },
-                    (error) => {
-                        document.getElementById('status').innerText = "ข้อผิดพลาด: โปรดเปิด GPS";
-                    },
-                    { enableHighAccuracy: true, maximumAge: 0 }
-                );
-            } else {
-                alert("เบราว์เซอร์ของคุณไม่รองรับ GPS");
+                navigator.geolocation.watchPosition((pos) => {
+                    set(ref(db, 'locations/' + dId), {
+                        routeName: rName,
+                        carNumber: cNum,
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                        timestamp: Date.now()
+                    });
+                }, (err) => {
+                    alert("กรุณาอนุญาตให้เข้าถึงตำแหน่ง GPS");
+                }, { enableHighAccuracy: true });
             }
         });
     </script>
