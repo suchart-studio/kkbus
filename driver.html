@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver GPS - Songthaew KKC</title>
+</head>
+<body style="text-align: center; padding: 50px; font-family: sans-serif;">
+    <h2>ระบบส่งพิกัดรถสองแถว</h2>
+    <p>รหัสรถ (สาย): <input type="text" id="driverId" placeholder="เช่น line8-01"></p>
+    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #28a745; color: white; border: none; border-radius: 8px;">เริ่มแชร์ตำแหน่ง</button>
+    <p id="status">สถานะ: รอการเชื่อมต่อ...</p>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // ใช้ firebaseConfig เดียวกับด้านบน
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let watchId;
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            const driverId = document.getElementById('driverId').value;
+            if(!driverId) return alert('กรุณากรอกรหัสรถ!');
+
+            if (navigator.geolocation) {
+                document.getElementById('status').innerText = "สถานะ: กำลังแชร์พิกัด 🟢";
+                
+                // เริ่มติดตามตำแหน่ง
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // อัปเดตขึ้น Firebase Realtime Database
+                        db.ref('locations/' + driverId).set({
+                            lat: lat,
+                            lng: lng,
+                            timestamp: Date.now()
+                        });
+                    },
+                    (error) => {
+                        document.getElementById('status').innerText = "ข้อผิดพลาด: เปิด GPS ด้วยครับ";
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0 }
+                );
+            } else {
+                alert("เบราว์เซอร์ของคุณไม่รองรับ GPS");
+            }
+        });
+    </script>
+</body>
+</html>
