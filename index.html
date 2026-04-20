@@ -2,20 +2,75 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Songthaew KKC Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>ระบบติดตามรถสองแถว ขอนแก่น</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Sarabun', sans-serif;
+        }
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        /* กล่องข้อความลอยทับแผนที่ */
+        .info-panel {
+            position: absolute;
+            top: 15px;
+            left: 50px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-left: 5px solid #ff3b30;
+        }
+        .info-panel h3 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
+        .info-panel p { margin: 0; font-size: 14px; color: #666; }
+
+        /* CSS สำหรับจุดรถสองแถวกระพริบ */
+        .songthaew-marker {
+            background-color: #ff3b30;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            box-shadow: 0 0 0 rgba(255, 59, 48, 0.7);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+        }
+    </style>
 </head>
 <body>
+
+    <div class="info-panel">
+        <h3>📍 ตำแหน่งรถสองแถวขอนแก่น</h3>
+        <p>แสดงตำแหน่งรถและเส้นทางแบบ Real-time</p>
+    </div>
+
     <div id="map"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. ตั้งค่า Firebase (เอาค่าจาก Firebase Console ของคุณมาใส่)
+        // ==========================================
+        // 1. ตั้งค่า Firebase (นำค่าจากโปรเจกต์คุณมาวางแทน)
+        // ==========================================
         const firebaseConfig = {
             apiKey: "YOUR_API_KEY",
             authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -25,34 +80,79 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // 2. ตั้งค่า OpenStreetMap ขอนแก่น
-        // พิกัดใจกลางขอนแก่น: 16.4322, 102.8236
+        // ==========================================
+        // 2. ตั้งค่าแผนที่ OpenStreetMap (ศูนย์กลางที่ขอนแก่น)
+        // ==========================================
         const map = L.map('map').setView([16.4322, 102.8236], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 3. กำหนด Custom Icon กระพริบ
+        // ==========================================
+        // 3. ตั้งค่า Icon สีแดงกระพริบ สำหรับรถสองแถว
+        // ==========================================
         const pulsingIcon = L.divIcon({
             className: 'custom-div-icon',
             html: "<div class='songthaew-marker'></div>",
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
+            iconSize: [24, 24], 
+            iconAnchor: [12, 12], 
+            popupAnchor: [0, -10] 
         });
 
-        // 4. ดึงข้อมูล Realtime จาก Firebase
-        let markers = {};
+        // ==========================================
+        // 4. ดึงข้อมูล "เส้นทาง (Routes)" จาก Admin มาแสดง
+        // ==========================================
+        let routeLayers = L.layerGroup().addTo(map);
+        db.ref('routes').on('value', (snapshot) => {
+            routeLayers.clearLayers(); // ล้างเส้นเก่าออกก่อนเผื่อแอดมินลบ/แก้
+            const routes = snapshot.val();
+            
+            for (let routeName in routes) {
+                if (routes[routeName].coords) {
+                    const path = routes[routeName].coords.map(c => [c.lat, c.lng]);
+                    
+                    // วาดเส้นลงแผนที่
+                    L.polyline(path, { 
+                        color: '#007bff', 
+                        weight: 5, 
+                        opacity: 0.6 
+                    }).bindPopup("<b>เส้นทางเดินรถ:</b><br>" + routes[routeName].name)
+                      .addTo(routeLayers);
+                }
+            }
+        });
+
+        // ==========================================
+        // 5. ดึงข้อมูล "ตำแหน่งรถ" แบบ Real-time
+        // ==========================================
+        let markers = {}; 
+        
         db.ref('locations').on('value', (snapshot) => {
-            const data = snapshot.val();
-            for (let driverId in data) {
-                const { lat, lng } = data[driverId];
+            const locations = snapshot.val();
+            
+            for (let driverId in locations) {
+                const { lat, lng, timestamp } = locations[driverId];
                 
-                if (markers[driverId]) {
-                    // ถ้ารถมีอยู่แล้ว ให้อัปเดตตำแหน่ง
-                    markers[driverId].setLatLng([lat, lng]);
+                // เช็คว่าตำแหน่งอัปเดตล่าสุดนานเกินไปหรือไม่ (เกิน 15 นาทีถือว่าออฟไลน์)
+                const isOffline = (Date.now() - timestamp) > (15 * 60 * 1000);
+
+                if (!isOffline) {
+                    if (markers[driverId]) {
+                        // ถ้ารถมีในแผนที่อยู่แล้ว ให้เลื่อนไปยังตำแหน่งใหม่
+                        markers[driverId].setLatLng([lat, lng]);
+                    } else {
+                        // ถ้ารถเพิ่งเข้ามาใหม่ ให้สร้างจุดใหม่
+                        markers[driverId] = L.marker([lat, lng], { icon: pulsingIcon })
+                            .addTo(map)
+                            .bindPopup(`<b>รหัสรถ: ${driverId}</b><br>กำลังวิ่งอยู่ขณะนี้`);
+                    }
                 } else {
-                    // ถ้ารถเพิ่งเข้ามาใหม่ ให้สร้าง Marker
-                    markers[driverId] = L.marker([lat, lng], { icon: pulsingIcon }).addTo(map);
+                    // ถ้ารถออฟไลน์ ให้ลบออกจากแผนที่
+                    if (markers[driverId]) {
+                        map.removeLayer(markers[driverId]);
+                        delete markers[driverId];
+                    }
                 }
             }
         });
