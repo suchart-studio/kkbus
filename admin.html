@@ -6,49 +6,21 @@
     <title>Admin - จัดการเส้นทางรถสองแถว</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     
     <style>
-        body { 
-            margin: 0; 
-            padding: 0;
-            font-family: 'Sarabun', sans-serif; 
-            display: flex; 
-            height: 100vh; 
-            overflow: hidden; 
-        }
-        #sidebar { 
-            width: 320px; 
-            background: #ffffff; 
-            border-right: 1px solid #ccc; 
-            display: flex; 
-            flex-direction: column;
-            z-index: 1001; /* ให้อยู่เหนือแผนที่ */
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-        #map { 
-            flex-grow: 1; 
-            height: 100%; /* บังคับความสูงเต็มพื้นที่ */
-            width: 100%;
-            background: #e5e3df; /* สีพื้นหลังระหว่างรอแผนที่โหลด */
-        }
+        body { margin: 0; padding: 0; font-family: 'Sarabun', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 320px; background: #ffffff; border-right: 1px solid #ccc; display: flex; flex-direction: column; z-index: 1001; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        #map { flex-grow: 1; height: 100%; width: 100%; background: #e5e3df; }
         .panel-padding { padding: 20px; border-bottom: 1px solid #eee; }
-        .route-item { 
-            padding: 12px 15px; 
-            border-bottom: 1px solid #f0f0f0; 
-            display: flex; 
-            flex-direction: column;
-            gap: 5px;
-        }
+        .route-item { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 5px; }
         .route-item:hover { background: #f9f9f9; }
         .route-info { display: flex; align-items: center; justify-content: space-between; }
         .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; margin-right: 8px; border: 1px solid #000; }
         
-        input[type="text"], input[type="color"] { width: 100%; padding: 10px; margin-top: 8px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
-        button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.2s; }
+        input[type="text"], input[type="color"] { width: 100%; padding: 10px; margin-top: 8px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; font-family: 'Sarabun', sans-serif;}
+        button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; padding: 10px; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.2s; font-family: 'Sarabun', sans-serif; font-size: 14px;}
         button:hover { background: #0056b3; }
         
         .btn-group { display: flex; gap: 5px; margin-top: 5px; }
@@ -57,6 +29,10 @@
         .btn-edit { background: #ffc107; color: #000; padding: 5px; font-size: 12px; }
         .btn-edit:hover { background: #e0a800; }
         
+        /* ปุ่มล้างรถค้าง */
+        .btn-warning { background: #fd7e14; color: white; margin-top: 15px; border: 2px solid #e8590c; }
+        .btn-warning:hover { background: #e8590c; }
+
         #route-list { overflow-y: auto; flex-grow: 1; }
         #status { font-size: 13px; color: #28a745; margin-top: 10px; text-align: center; display: block; font-weight: bold;}
     </style>
@@ -77,24 +53,29 @@
             <button id="saveBtn">💾 บันทึกเส้นทางที่วาด</button>
             <span id="status"></span>
         </div>
+
+        <div class="panel-padding" style="background: #fff3cd; border-bottom: 2px solid #ffe69c;">
+            <strong style="font-size: 16px; color: #856404;">⚙️ จัดการระบบ (ฉุกเฉิน)</strong>
+            <button id="clearLocationsBtn" class="btn-warning">🧹 ล้างรถที่ค้างบนแผนที่ทั้งหมด</button>
+        </div>
+
         <div id="route-list">
             <div class='panel-padding' style="background: #f8f9fa;">
                 <strong>📋 รายการเส้นทางในระบบ</strong>
             </div>
-            </div>
+        </div>
     </div>
 
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+        // เพิ่มคำสั่ง remove สำหรับลบข้อมูล
         import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
 
-        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDMMwciq6QoLSaWK6xfdr0U3ynyahtoaSk",
             authDomain: "studio-a33fe.firebaseapp.com",
@@ -108,59 +89,33 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // --- เริ่มต้นตั้งค่าแผนที่ ---
         const map = L.map('map').setView([16.4322, 102.8236], 13);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
 
-        // Layer สำหรับเก็บสิ่งที่วาด
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
-        // เพิ่มเครื่องมือวาด
         const drawControl = new L.Control.Draw({
-            position: 'topright', // ย้ายมาฝั่งขวาจะได้ไม่ทับกับ Sidebar
+            position: 'topright',
             draw: {
-                polyline: {
-                    shapeOptions: {
-                        color: '#ff3b30',
-                        weight: 6
-                    }
-                },
-                polygon: false,
-                circle: false,
-                marker: false,
-                circlemarker: false,
-                rectangle: false
+                polyline: { shapeOptions: { color: '#ff3b30', weight: 6 } },
+                polygon: false, circle: false, marker: false, circlemarker: false, rectangle: false
             },
-            edit: {
-                featureGroup: drawnItems
-            }
+            edit: { featureGroup: drawnItems }
         });
         map.addControl(drawControl);
 
         let currentCoords = null;
 
-        // เมื่อวาดเส้นใหม่เสร็จสิ้น
         map.on(L.Draw.Event.CREATED, (e) => {
-            drawnItems.clearLayers(); // ให้วาดได้ทีละหนึ่งเส้นเพื่อความแม่นยำ
+            drawnItems.clearLayers();
             const layer = e.layer;
             drawnItems.addLayer(layer);
-            
-            // เก็บพิกัด Lat, Lng ลงตัวแปร
-            currentCoords = layer.getLatLngs().map(latlng => ({
-                lat: latlng.lat,
-                lng: latlng.lng
-            }));
-            
+            currentCoords = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
             document.getElementById('status').innerText = "วาดสำเร็จ! กรุณาตั้งชื่อและบันทึก";
             document.getElementById('status').style.color = "#007bff";
         });
 
-        // ฟังก์ชันบันทึกลง Firebase
         document.getElementById('saveBtn').addEventListener('click', () => {
             const name = document.getElementById('routeName').value.trim();
             const color = document.getElementById('routeColor').value;
@@ -169,10 +124,7 @@
             if (!currentCoords) return alert("กรุณาวาดเส้นทางบนแผนที่ก่อน!");
 
             set(ref(db, 'routes/' + name), {
-                name: name,
-                color: color,
-                coords: currentCoords,
-                updatedAt: Date.now()
+                name: name, color: color, coords: currentCoords, updatedAt: Date.now()
             }).then(() => {
                 document.getElementById('status').innerText = "บันทึกข้อมูลเรียบร้อย! ✅";
                 document.getElementById('status').style.color = "#28a745";
@@ -182,12 +134,10 @@
             }).catch(err => alert("Error: " + err.message));
         });
 
-        // โหลดรายการเส้นทางจาก Firebase มาแสดงใน Sidebar
+        // โหลดรายการเส้นทาง
         onValue(ref(db, 'routes'), (snapshot) => {
             const listDiv = document.getElementById('route-list');
-            // คงส่วนหัวไว้
             listDiv.innerHTML = '<div class="panel-padding" style="background: #f8f9fa;"><strong>📋 รายการเส้นทางในระบบ</strong></div>';
-            
             const data = snapshot.val();
             if (!data) return;
 
@@ -210,37 +160,41 @@
                 listDiv.appendChild(item);
             }
 
-            // ฟังก์ชันสำหรับลบเส้นทาง
             window.deleteRoute = (id) => {
-                if(confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเส้นทาง "${id}"?`)) {
-                    remove(ref(db, 'routes/' + id));
-                }
+                if(confirm(`ลบเส้นทาง "${id}" หรือไม่?`)) remove(ref(db, 'routes/' + id));
             };
 
-            // ฟังก์ชันสำหรับดึงข้อมูลกลับมาแก้ไข
             window.editRoute = (id) => {
                 const route = data[id];
                 document.getElementById('routeName').value = route.name;
                 document.getElementById('routeColor').value = route.color;
-                
-                // ล้างของเก่าบนหน้าวาด แล้วเอาเส้นเก่ามาวาง
                 drawnItems.clearLayers();
                 const latlngs = route.coords.map(c => [c.lat, c.lng]);
                 const polyline = L.polyline(latlngs, { color: route.color, weight: 6 });
                 drawnItems.addLayer(polyline);
                 currentCoords = route.coords;
-                
-                // เลื่อนแผนที่ไปหาเส้นทางนั้น
                 map.fitBounds(polyline.getBounds());
-                document.getElementById('status').innerText = "กำลังแก้ไข: " + route.name;
-                document.getElementById('status').style.color = "#ffc107";
             };
         });
 
-        // จัดการเรื่องขนาดแผนที่เมื่อมีการ Resize หน้าจอ
-        window.addEventListener('resize', () => {
-            map.invalidateSize();
+        // ==========================================
+        // ฟังก์ชันล้างตำแหน่งรถที่ค้างในระบบทั้งหมด
+        // ==========================================
+        document.getElementById('clearLocationsBtn').addEventListener('click', () => {
+            // โชว์กล่องยืนยันก่อนลบ ป้องกันแอดมินกดพลาด
+            const confirmClear = confirm("⚠️ คุณแน่ใจหรือไม่ที่จะล้าง 'ตำแหน่งรถทั้งหมด' ออกจากแผนที่?\n(รถที่กำลังวิ่งอยู่จะต้องกดเริ่มแชร์พิกัดใหม่)");
+            
+            if (confirmClear) {
+                // ลบโฟลเดอร์ locations ทิ้งทั้งยวง
+                remove(ref(db, 'locations')).then(() => {
+                    alert("ล้างตำแหน่งรถบนแผนที่เรียบร้อยแล้ว! 🧹");
+                }).catch(err => {
+                    alert("เกิดข้อผิดพลาด: " + err.message);
+                });
+            }
         });
+
+        window.addEventListener('resize', () => { map.invalidateSize(); });
     </script>
 </body>
 </html>
