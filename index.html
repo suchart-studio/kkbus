@@ -9,27 +9,27 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body { margin: 0; padding: 0; font-family: 'Sarabun', sans-serif; background-color: #222; }
+        body { margin: 0; padding: 0; font-family: 'Sarabun', sans-serif; background-color: #f8f9fa; }
         #map { width: 100vw; height: 100vh; }
         
-        /* กล่องข้อความมุมซ้ายบน (ปรับเป็นโทนเข้มให้เข้ากับแผนที่) */
+        /* กล่องข้อความมุมซ้ายบน (ปรับให้เข้ากับโทนสว่าง) */
         .info-panel { 
             position: absolute; top: 15px; left: 50px; z-index: 1000; 
-            background: rgba(30, 30, 30, 0.9); padding: 12px 18px; 
-            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
+            background: rgba(255, 255, 255, 0.95); padding: 12px 18px; 
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
             border-left: 5px solid #ff3b30; 
-            color: white;
+            color: #333;
         }
-        .info-panel h3 { margin: 0 0 5px 0; font-size: 16px; color: #fff; }
-        .info-panel p { margin: 0; font-size: 14px; color: #bbb; }
+        .info-panel h3 { margin: 0 0 5px 0; font-size: 16px; font-weight: bold; }
+        .info-panel p { margin: 0; font-size: 14px; color: #666; }
 
-        /* ป้ายชื่อสายและเลขรถ (พื้นดำโปร่งใส ตัวหนังสือขาว) */
+        /* ป้ายชื่อสายและเลขรถ (พื้นดำโปร่งใส ตัวหนังสือขาว เพื่อให้เด่นจากพื้นหลังสว่าง) */
         .marker-label {
             position: absolute;
             bottom: 25px; /* อยู่เหนือไอคอนวงกลม */
             left: 50%;
             transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.8);
+            background-color: rgba(30, 30, 30, 0.85);
             color: #fff;
             padding: 4px 10px;
             border-radius: 6px;
@@ -37,8 +37,8 @@
             white-space: nowrap;
             font-weight: bold;
             pointer-events: none;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
 
         /* ไอคอนรถสองแถวกระพริบ */
@@ -54,11 +54,13 @@
             100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } 
         }
 
-        /* ปรับแต่ง Popup ให้ดูเข้ากับ Dark Theme */
+        /* ปรับแต่ง Popup ให้ดูสะอาดตาเข้ากับ Light Theme */
         .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-            background: #333;
-            color: #fff;
-            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+            background: #fff;
+            color: #333;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.2);
+            font-family: 'Sarabun', sans-serif;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -93,9 +95,10 @@
         const map = L.map('map').setView([16.4322, 102.8236], 14);
         
         // ==========================================
-        // อัปเดต Tile Layer เป็น CartoDB Dark Matter (สีเทาเข้ม)
+        // อัปเดต Tile Layer เป็น CartoDB Positron (โทนสว่าง/เทาอ่อน)
+        // เพื่อให้อ่านชื่อสถานที่ได้ชัดเจนขึ้น
         // ==========================================
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { 
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { 
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             maxZoom: 19
         }).addTo(map);
@@ -109,8 +112,8 @@
                 if (route.coords) {
                     const path = route.coords.map(c => [c.lat, c.lng]);
                     
-                    // ปรับ opacity เพิ่มขึ้นนิดหน่อยเพื่อให้สีเด่นทะลุพื้นหลังสีดำ
-                    L.polyline(path, { color: route.color || '#007bff', weight: 5, opacity: 0.85 })
+                    // ปรับ opacity ลดลงนิดหน่อยเพื่อให้กลมกลืนกับพื้นสว่าง
+                    L.polyline(path, { color: route.color || '#007bff', weight: 5, opacity: 0.8 })
                      .bindPopup(`<b>เส้นทาง: ${route.name}</b>`).addTo(routeLayers);
                 }
             }
