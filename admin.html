@@ -29,7 +29,6 @@
         .btn-edit { background: #ffc107; color: #000; padding: 5px; font-size: 12px; }
         .btn-edit:hover { background: #e0a800; }
         
-        /* ปุ่มล้างรถค้าง */
         .btn-warning { background: #fd7e14; color: white; margin-top: 15px; border: 2px solid #e8590c; }
         .btn-warning:hover { background: #e8590c; }
 
@@ -73,7 +72,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-        // เพิ่มคำสั่ง remove สำหรับลบข้อมูล
         import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -89,9 +87,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        // --- ตั้งค่าแผนที่หลัก ---
         const map = L.map('map').setView([16.4322, 102.8236], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
 
+        // 1. Layer สำหรับแสดงเส้นทางที่ "มีอยู่แล้วในระบบ"
+        const allRoutesLayer = L.layerGroup().addTo(map);
+        
+        // 2. Layer สำหรับ "เครื่องมือวาด" (จะแสดงเฉพาะตอนกำลังวาดหรือแก้ไข)
         const drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
@@ -107,15 +110,17 @@
 
         let currentCoords = null;
 
+        // เมื่อวาดเส้นเสร็จ
         map.on(L.Draw.Event.CREATED, (e) => {
             drawnItems.clearLayers();
             const layer = e.layer;
             drawnItems.addLayer(layer);
             currentCoords = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
-            document.getElementById('status').innerText = "วาดสำเร็จ! กรุณาตั้งชื่อและบันทึก";
+            document.getElementById('status').innerText = "วาดเสร็จ! กดบันทึกได้เลย";
             document.getElementById('status').style.color = "#007bff";
         });
 
+        // เมื่อกดปุ่มบันทึก
         document.getElementById('saveBtn').addEventListener('click', () => {
             const name = document.getElementById('routeName').value.trim();
             const color = document.getElementById('routeColor').value;
@@ -128,21 +133,37 @@
             }).then(() => {
                 document.getElementById('status').innerText = "บันทึกข้อมูลเรียบร้อย! ✅";
                 document.getElementById('status').style.color = "#28a745";
+                
+                // ล้างช่องกรอกและเส้นที่วาดค้างอยู่ เพื่อเตรียมวาดสายต่อไป
                 document.getElementById('routeName').value = "";
                 drawnItems.clearLayers();
                 currentCoords = null;
             }).catch(err => alert("Error: " + err.message));
         });
 
-        // โหลดรายการเส้นทาง
+        // โหลดรายการเส้นทาง "ทั้งหมด" มาแสดงบน Sidebar และบนแผนที่ Admin
         onValue(ref(db, 'routes'), (snapshot) => {
             const listDiv = document.getElementById('route-list');
             listDiv.innerHTML = '<div class="panel-padding" style="background: #f8f9fa;"><strong>📋 รายการเส้นทางในระบบ</strong></div>';
+            
+            // ล้างเส้นเก่าบนแผนที่ออกก่อน เพื่อวาดใหม่จากข้อมูลล่าสุด
+            allRoutesLayer.clearLayers();
+            
             const data = snapshot.val();
             if (!data) return;
 
             for (let id in data) {
                 const route = data[id];
+                
+                // วาดเส้นลงบนแผนที่ Admin (แสดงเป็นเส้นทึบแสง 70%)
+                if (route.coords) {
+                    const path = route.coords.map(c => [c.lat, c.lng]);
+                    L.polyline(path, { color: route.color || '#007bff', weight: 4, opacity: 0.7 })
+                     .bindPopup(`<b>${route.name}</b>`)
+                     .addTo(allRoutesLayer);
+                }
+
+                // สร้างรายการใน Sidebar
                 const item = document.createElement('div');
                 item.className = 'route-item';
                 item.innerHTML = `
@@ -160,32 +181,34 @@
                 listDiv.appendChild(item);
             }
 
+            // ฟังก์ชันลบ
             window.deleteRoute = (id) => {
                 if(confirm(`ลบเส้นทาง "${id}" หรือไม่?`)) remove(ref(db, 'routes/' + id));
             };
 
+            // ฟังก์ชันแก้ไข
             window.editRoute = (id) => {
                 const route = data[id];
                 document.getElementById('routeName').value = route.name;
                 document.getElementById('routeColor').value = route.color;
+                
+                // นำเส้นทางเดิมมาใส่เครื่องมือวาดให้แก้ไขได้
                 drawnItems.clearLayers();
                 const latlngs = route.coords.map(c => [c.lat, c.lng]);
                 const polyline = L.polyline(latlngs, { color: route.color, weight: 6 });
                 drawnItems.addLayer(polyline);
                 currentCoords = route.coords;
+                
                 map.fitBounds(polyline.getBounds());
+                document.getElementById('status').innerText = "กำลังแก้ไข: " + route.name;
+                document.getElementById('status').style.color = "#ffc107";
             };
         });
 
-        // ==========================================
         // ฟังก์ชันล้างตำแหน่งรถที่ค้างในระบบทั้งหมด
-        // ==========================================
         document.getElementById('clearLocationsBtn').addEventListener('click', () => {
-            // โชว์กล่องยืนยันก่อนลบ ป้องกันแอดมินกดพลาด
             const confirmClear = confirm("⚠️ คุณแน่ใจหรือไม่ที่จะล้าง 'ตำแหน่งรถทั้งหมด' ออกจากแผนที่?\n(รถที่กำลังวิ่งอยู่จะต้องกดเริ่มแชร์พิกัดใหม่)");
-            
             if (confirmClear) {
-                // ลบโฟลเดอร์ locations ทิ้งทั้งยวง
                 remove(ref(db, 'locations')).then(() => {
                     alert("ล้างตำแหน่งรถบนแผนที่เรียบร้อยแล้ว! 🧹");
                 }).catch(err => {
