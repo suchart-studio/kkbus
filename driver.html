@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>สำหรับให้ประชาชนเช็คพิกัดรถ</title>
+    <title>Driver - โหมดประหยัดพลังงาน</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* โหมดมืดสนิท (Pitch Black) ช่วยประหยัดแบตเตอรี่หน้าจอ OLED อย่างมาก */
         body { font-family: 'Sarabun', sans-serif; margin: 0; padding: 0; background-color: #000000; color: #ffffff; display: flex; flex-direction: column; height: 100vh; }
         .header { background-color: #111; color: #aaa; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; border-bottom: 1px solid #333; }
         .container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; gap: 20px; }
@@ -18,7 +17,7 @@
         
         button { width: 100%; padding: 20px; font-size: 24px; background: #1b5e20; color: #ddd; border: 1px solid #2e7d32; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         button:active { transform: scale(0.98); }
-        button.active-mode { background: #b71c1c; border-color: #d32f2f; color: #fff; animation: none; /* ปิด animation กระพริบเพื่อลดการประมวลผล GPU */ }
+        button.active-mode { background: #b71c1c; border-color: #d32f2f; color: #fff; }
         
         #statusText { font-size: 20px; font-weight: bold; color: #888; margin: 0; }
         #statsText { font-size: 14px; color: #666; margin-top: 10px; font-weight: normal; }
@@ -28,14 +27,14 @@
 </head>
 <body>
 
-    <div class="header">สำหรับให้ประชาชนเช็คพิกัดรถ</div>
+    <div class="header">🔋 โหมดประหยัดพลังงาน & ดาต้า</div>
 
     <div class="container">
         <div class="status-box">
-            <label>ชื่อสายรถ</label>
+            <label>ชื่อสายรถ (เช่น สาย 8):</label>
             <input type="text" id="routeName" placeholder="กรอกชื่อสายรถ">
             <br><br>
-            <label>ชื่อเส้นทาง</label>
+            <label>เลขข้างรถ (เช่น 08-123):</label>
             <input type="text" id="carNumber" placeholder="กรอกเลขข้างรถ">
         </div>
 
@@ -78,17 +77,16 @@
         let isTracking = false;
         let watchId = null;
         let wakeLock = null;
+        let heartbeatTimer = null; // ตัวแปรสำหรับระบบชีพจร
         const driverRef = ref(db, 'locations/' + dId);
 
-        // ตัวแปรสำหรับเช็คการประหยัดเน็ต
         let lastUpdateTime = 0;
         let lastLat = null;
         let lastLng = null;
         let updatesCount = 0;
 
-        // สูตรคำนวณระยะทางระหว่างจุด 2 จุด (พิกัดโลก) เป็น "เมตร"
         function getDistanceInMeters(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // รัศมีโลกเป็นเมตร
+            const R = 6371e3; 
             const φ1 = lat1 * Math.PI/180;
             const φ2 = lat2 * Math.PI/180;
             const Δφ = (lat2-lat1) * Math.PI/180;
@@ -135,22 +133,35 @@
                     await requestWakeLock();
                     onDisconnect(driverRef).remove();
 
-                    // การตั้งค่า GPS เพื่อประหยัดแบตเตอรี่
+                    // 🌟 ระบบ Heartbeat: ยืนยันตำแหน่งเดิมทุกๆ 30 วินาที ป้องกันรถหายจากแผนที่เมื่อเน็ตกระตุก
+                    heartbeatTimer = setInterval(() => {
+                        if (isTracking && lastLat !== null && lastLng !== null) {
+                            set(driverRef, {
+                                routeName: rName,
+                                carNumber: cNum,
+                                lat: lastLat,
+                                lng: lastLng,
+                                timestamp: Date.now()
+                            }).then(() => {
+                                const timeString = new Date().toLocaleTimeString('th-TH');
+                                statsText.innerHTML = `ยืนยันพิกัดล่าสุด: ${timeString} <br>(ส่งไปแล้ว ${updatesCount} ครั้ง)`;
+                            });
+                        }
+                    }, 30000); // ทำงานทุก 30 วินาที
+
+                    // ระบบ GPS หลัก (ยังคงทำงานแบบประหยัดพลังงาน)
                     watchId = navigator.geolocation.watchPosition((pos) => {
                         const now = Date.now();
                         const currentLat = pos.coords.latitude;
                         const currentLng = pos.coords.longitude;
 
-                        // 1. ถ้าส่งครั้งล่าสุดไม่ถึง 5 วินาที ให้ข้ามไป (ลดการใช้ Data)
                         if (now - lastUpdateTime < 5000) return;
 
-                        // 2. ถ้ารถจอดอยู่ หรือเคลื่อนที่ไม่ถึง 5 เมตร ให้ข้ามไป (รถติดไม่ต้องส่งข้อมูลซ้ำ)
                         if (lastLat !== null && lastLng !== null) {
                             const distanceMoved = getDistanceInMeters(lastLat, lastLng, currentLat, currentLng);
                             if (distanceMoved < 5) return; 
                         }
 
-                        // หากผ่านเงื่อนไข ให้ส่งข้อมูลขึ้น Firebase
                         set(driverRef, {
                             routeName: rName,
                             carNumber: cNum,
@@ -163,14 +174,14 @@
                             lastLng = currentLng;
                             updatesCount++;
                             const timeString = new Date().toLocaleTimeString('th-TH');
-                            statsText.innerHTML = `อัปเดตล่าสุด: ${timeString} <br>(ส่งไปแล้ว ${updatesCount} ครั้ง)`;
+                            statsText.innerHTML = `ตรวจจับการเคลื่อนที่: ${timeString} <br>(ส่งไปแล้ว ${updatesCount} ครั้ง)`;
                         });
 
                     }, (err) => {
                         alert("กรุณาเปิด GPS และอนุญาตตำแหน่ง!"); stopTracking();
                     }, { 
                         enableHighAccuracy: true, 
-                        maximumAge: 5000, // อนุญาตให้ใช้พิกัดเก่าได้ในระยะ 5 วินาที (ชิปไม่ต้องทำงานตลอดเวลา)
+                        maximumAge: 5000, 
                         timeout: 10000 
                     });
                 }
@@ -185,6 +196,9 @@
             
             if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
             if (wakeLock !== null) { wakeLock.release().then(() => { wakeLock = null; }); }
+            
+            // 🌟 ปิดระบบ Heartbeat
+            if (heartbeatTimer !== null) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
             
             startBtn.innerHTML = "▶️ เริ่มแชร์พิกัด";
             startBtn.classList.remove('active-mode');
