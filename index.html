@@ -33,21 +33,29 @@
         }
         .locate-btn:hover { background: #f0f0f0; transform: scale(1.05); }
 
+        /* ป้ายชื่อรถ */
         .marker-label { 
             position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); 
-            background-color: rgba(30, 30, 30, 0.85); color: #fff; padding: 4px 10px; 
-            border-radius: 6px; font-size: 12px; white-space: nowrap; font-weight: bold; 
-            pointer-events: none; border: 1px solid rgba(255, 255, 255, 0.5); 
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
+            color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 12px; 
+            white-space: nowrap; font-weight: bold; pointer-events: none; 
+            border: 1px solid rgba(255, 255, 255, 0.8); 
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            /* เพิ่มเงาดำให้ตัวหนังสือ เพื่อให้อ่านง่ายบนพื้นหลังสีสว่าง */
+            text-shadow: 0px 1px 3px rgba(0,0,0,0.8);
         }
 
-        /* 🔴 รถจริง (สีแดง) */
-        .songthaew-marker { 
-            background-color: #ff3b30; border-radius: 50%; width: 18px; height: 18px; 
-            border: 2px solid white; box-shadow: 0 0 0 rgba(255, 59, 48, 0.7); 
-            animation: pulse-red 1.5s infinite; 
+        /* 🚗 ไอคอนรถ (สีและแสงกระพริบจะเปลี่ยนตามสีของเส้นทางแบบ Dynamic) */
+        .songthaew-marker, .dummy-marker { 
+            border-radius: 50%; width: 18px; height: 18px; 
+            border: 2px solid white; 
+            animation: pulse-dynamic 1.5s infinite; 
         }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+        
+        @keyframes pulse-dynamic { 
+            0% { box-shadow: 0 0 0 0 var(--glow-color, rgba(255, 59, 48, 0.7)); } 
+            70% { box-shadow: 0 0 0 15px transparent; } 
+            100% { box-shadow: 0 0 0 0 transparent; } 
+        }
 
         /* 🔵 ผู้ใช้งาน (สีฟ้า) */
         .user-marker {
@@ -55,13 +63,6 @@
             border: 3px solid white; box-shadow: 0 0 0 rgba(0, 123, 255, 0.7); animation: pulse-blue 2s infinite;
         }
         @keyframes pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(0, 123, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); } }
-
-        /* 🟠 รถจำลอง Dummy (สีส้ม) */
-        .dummy-marker {
-            background-color: #ff9800; border-radius: 50%; width: 18px; height: 18px;
-            border: 2px solid white; box-shadow: 0 0 0 rgba(255, 152, 0, 0.7); animation: pulse-orange 1s infinite;
-        }
-        @keyframes pulse-orange { 0% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(255, 152, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); } }
 
         .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #fff; color: #333; box-shadow: 0 3px 14px rgba(0,0,0,0.2); font-family: 'Sarabun', sans-serif; font-size: 14px; }
     </style>
@@ -132,17 +133,21 @@
         });
 
         // ==========================================
-        // 2. ดึงเส้นทาง (Routes) จาก Firebase
+        // 2. ดึงเส้นทาง (Routes)
         // ==========================================
         let routeLayers = L.layerGroup().addTo(map);
         let cachedRoutes = {}; 
+        window.routeColorsMap = {}; // ตัวแปรสำหรับจับคู่ชื่อสายรถกับสี
 
         onValue(ref(db, 'routes'), (snapshot) => {
             routeLayers.clearLayers();
             cachedRoutes = snapshot.val() || {};
+            window.routeColorsMap = {};
             
             for (let id in cachedRoutes) {
                 const route = cachedRoutes[id];
+                window.routeColorsMap[route.name] = route.color; // เก็บสีไว้ให้ระบบรถดึงไปใช้
+
                 if (route.coords) {
                     const path = route.coords.map(c => [c.lat, c.lng]);
                     L.polyline(path, { color: route.color || '#007bff', weight: 5, opacity: 0.8 })
@@ -157,7 +162,7 @@
         });
 
         // ==========================================
-        // 3. แสดงตำแหน่งรถที่วิ่งจริงๆ 
+        // 3. แสดงตำแหน่งรถที่วิ่งจริงๆ
         // ==========================================
         let markers = {}; 
         
@@ -173,9 +178,17 @@
 
                 if (!isOffline) {
                     const labelText = `${routeName || 'ไม่ระบุสาย'} - ${carNumber || driverId}`;
+                    
+                    // ดึงสีตามชื่อสาย ถ้าระบบไม่เจอสีให้ใช้สีแดงเป็นค่าเริ่มต้น
+                    const markerColor = window.routeColorsMap[routeName] || '#ff3b30';
+
                     const customIcon = L.divIcon({ 
                         className: 'custom-div-icon', 
-                        html: `<div class="marker-label">${labelText}</div><div class="songthaew-marker"></div>`, 
+                        // ยัดสีลงไปที่ style โดยตรง ทั้งสีพื้นหลังกล่องข้อความ และสีรถ
+                        html: `
+                            <div class="marker-label" style="background-color: ${markerColor}E6;">${labelText}</div>
+                            <div class="songthaew-marker" style="background-color: ${markerColor}; --glow-color: ${markerColor};"></div>
+                        `, 
                         iconSize: [20, 20], iconAnchor: [10, 10]
                     });
 
@@ -205,48 +218,45 @@
         });
 
         function startDummyCars() {
-            // ตั้งค่าความเร็วของรถจำลอง: 30 กม./ชม.
             const speedKmh = 30; 
-            const speedMs = speedKmh * 1000 / 3600; // แปลงเป็น เมตร/วินาที
-            const fps = 30; // อัปเดตทุก 30 มิลลิวินาที (ลื่นไหลเหมือนวิดีโอ)
-            const stepMeters = speedMs * (fps / 1000); // ระยะทางที่เคลื่อนที่ได้ต่อ 1 เฟรม
+            const speedMs = speedKmh * 1000 / 3600; 
+            const fps = 30; 
+            const stepMeters = speedMs * (fps / 1000); 
 
             for (let id in cachedRoutes) {
                 const route = cachedRoutes[id];
                 if (!route.coords || route.coords.length < 2) continue;
 
                 const path = route.coords;
-                // เนียนเปลี่ยนป้ายชื่อให้เป็นเสมือนรถจริง
-                const labelText = `${route.name} - 01`;
+                // เอาคำว่าจำลองและเลข 01 ออก ใช้ชื่อสายเพียวๆ
+                const labelText = `${route.name}`;
+                const markerColor = route.color || '#ff9800';
 
                 const dummyIcon = L.divIcon({
                     className: 'custom-div-icon',
-                    html: `<div class="marker-label" style="background-color:rgba(255, 152, 0, 0.9);">${labelText}</div><div class="dummy-marker"></div>`,
+                    html: `
+                        <div class="marker-label" style="background-color: ${markerColor}E6;">${labelText}</div>
+                        <div class="dummy-marker" style="background-color: ${markerColor}; --glow-color: ${markerColor};"></div>
+                    `,
                     iconSize: [20, 20],
                     iconAnchor: [10, 10]
                 });
 
                 dummyMarkers[id] = L.marker([path[0].lat, path[0].lng], { icon: dummyIcon }).addTo(map);
 
-                // สร้าง State สำหรับจดจำตำแหน่งปัจจุบันของรถคันนี้
                 let state = {
                     currentIndex: 0,
-                    segmentProgress: 0 // ระยะทางที่วิ่งไปแล้วในเส้นเชื่อมระหว่างจุด 2 จุด
+                    segmentProgress: 0 
                 };
 
-                // ลูปขยับพิกัดแบบ Smooth
                 dummyIntervals[id] = setInterval(() => {
                     let p1 = path[state.currentIndex];
                     let nextIndex = (state.currentIndex + 1) % path.length;
                     let p2 = path[nextIndex];
 
-                    // คำนวณระยะทางระหว่างจุด 2 จุด
                     let dist = map.distance([p1.lat, p1.lng], [p2.lat, p2.lng]);
-
-                    // บวกระยะทางเดินหน้า
                     state.segmentProgress += stepMeters;
 
-                    // ถ้ารถวิ่งเกินความยาวของเส้นปัจจุบัน ให้สลับไปเส้นต่อไป
                     while (state.segmentProgress >= dist) {
                         state.segmentProgress -= dist;
                         state.currentIndex = nextIndex;
@@ -257,7 +267,6 @@
                         dist = map.distance([p1.lat, p1.lng], [p2.lat, p2.lng]);
                     }
 
-                    // หาพิกัด (Lat/Lng) แทรกกลางระหว่าง 2 จุด ด้วยคณิตศาสตร์
                     let ratio = dist === 0 ? 0 : state.segmentProgress / dist;
                     let currentLat = p1.lat + (p2.lat - p1.lat) * ratio;
                     let currentLng = p1.lng + (p2.lng - p1.lng) * ratio;
