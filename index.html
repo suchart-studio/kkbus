@@ -14,22 +14,28 @@
             position: absolute; top: 15px; left: 50px; z-index: 1000; 
             background: rgba(255, 255, 255, 0.95); padding: 12px 18px; 
             border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
-            border-left: 5px solid #ff3b30; color: #333; 
+            border-left: 5px solid #ff3b30; color: #333; min-width: 200px;
         }
         .info-panel h3 { margin: 0 0 5px 0; font-size: 16px; font-weight: bold; }
-        .info-panel p { margin: 0; font-size: 14px; color: #666; }
+        .info-panel p { margin: 0 0 10px 0; font-size: 14px; color: #666; }
 
-        /* ปุ่มกลับไปตำแหน่งของฉัน (มุมขวาล่าง) */
+        /* สวิตช์เปิด/ปิด Dummy Mode */
+        .toggle-container {
+            display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: bold; color: #ff9800;
+            background: #fff3e0; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffe0b2;
+        }
+        .toggle-switch { cursor: pointer; width: 16px; height: 16px; }
+
+        /* ปุ่มกลับไปตำแหน่งของฉัน */
         .locate-btn {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
             background: white; border: 2px solid #ccc; border-radius: 50%;
             width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); cursor: pointer; font-size: 24px;
-            transition: 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); cursor: pointer; font-size: 24px; transition: 0.2s;
         }
         .locate-btn:hover { background: #f0f0f0; transform: scale(1.05); }
 
-        /* ป้ายชื่อรถสองแถว */
+        /* ป้ายชื่อรถ */
         .marker-label { 
             position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); 
             background-color: rgba(30, 30, 30, 0.85); color: #fff; padding: 4px 10px; 
@@ -38,29 +44,27 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
         }
 
-        /* 🔴 ไอคอนรถสองแถว (สีแดง) */
+        /* 🔴 รถจริง (สีแดง) */
         .songthaew-marker { 
             background-color: #ff3b30; border-radius: 50%; width: 18px; height: 18px; 
             border: 2px solid white; box-shadow: 0 0 0 rgba(255, 59, 48, 0.7); 
             animation: pulse-red 1.5s infinite; 
         }
-        @keyframes pulse-red { 
-            0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 
-            70% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); } 
-            100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } 
-        }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
 
-        /* 🔵 ไอคอนผู้ใช้งาน (สีฟ้า) */
+        /* 🔵 ผู้ใช้งาน (สีฟ้า) */
         .user-marker {
             background-color: #007bff; border-radius: 50%; width: 16px; height: 16px;
-            border: 3px solid white; box-shadow: 0 0 0 rgba(0, 123, 255, 0.7);
-            animation: pulse-blue 2s infinite;
+            border: 3px solid white; box-shadow: 0 0 0 rgba(0, 123, 255, 0.7); animation: pulse-blue 2s infinite;
         }
-        @keyframes pulse-blue { 
-            0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); } 
-            70% { box-shadow: 0 0 0 20px rgba(0, 123, 255, 0); } 
-            100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); } 
+        @keyframes pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(0, 123, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); } }
+
+        /* 🟠 รถจำลอง Dummy (สีส้ม) */
+        .dummy-marker {
+            background-color: #ff9800; border-radius: 50%; width: 18px; height: 18px;
+            border: 2px solid white; box-shadow: 0 0 0 rgba(255, 152, 0, 0.7); animation: pulse-orange 1s infinite;
         }
+        @keyframes pulse-orange { 0% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(255, 152, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); } }
 
         .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #fff; color: #333; box-shadow: 0 3px 14px rgba(0,0,0,0.2); font-family: 'Sarabun', sans-serif; font-size: 14px; }
     </style>
@@ -70,10 +74,14 @@
     <div class="info-panel">
         <h3>📍 ติดตามรถสองแถวขอนแก่น</h3>
         <p>Real-time Tracking System</p>
+        
+        <div class="toggle-container">
+            <input type="checkbox" id="dummyToggle" class="toggle-switch">
+            <label for="dummyToggle" style="cursor: pointer;">เปิดระบบรถจำลอง (Dummy)</label>
+        </div>
     </div>
 
     <div class="locate-btn" id="locateBtn" title="ไปที่ตำแหน่งของฉัน">🎯</div>
-
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -102,89 +110,69 @@
         }).addTo(map);
 
         // ==========================================
-        // 1. ระบบพิกัดผู้ใช้งาน (User Location - Blue Dot)
+        // 1. ระบบพิกัดผู้ใช้งาน (User Location)
         // ==========================================
-        const userIcon = L.divIcon({
-            className: 'custom-div-icon',
-            html: "<div class='user-marker'></div>",
-            iconSize: [22, 22],
-            iconAnchor: [11, 11]
-        });
+        const userIcon = L.divIcon({ className: 'custom-div-icon', html: "<div class='user-marker'></div>", iconSize: [22, 22], iconAnchor: [11, 11] });
+        let userMarker = null; let userLat = null; let userLng = null;
 
-        let userMarker = null;
-        let userLat = null;
-        let userLng = null;
-
-        // ติดตามตำแหน่งผู้ใช้ตลอดเวลา
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
-                (position) => {
-                    userLat = position.coords.latitude;
-                    userLng = position.coords.longitude;
-
-                    if (userMarker) {
-                        userMarker.setLatLng([userLat, userLng]);
-                    } else {
-                        // สร้างหมุดครั้งแรก
-                        userMarker = L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map)
-                            .bindPopup("<b>🧍 ตำแหน่งของคุณ</b>");
-                        
-                        // เลื่อนแผนที่ไปหาผู้ใช้เมื่อโหลดพิกัดสำเร็จครั้งแรก
+                (pos) => {
+                    userLat = pos.coords.latitude; userLng = pos.coords.longitude;
+                    if (userMarker) userMarker.setLatLng([userLat, userLng]);
+                    else {
+                        userMarker = L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map).bindPopup("<b>🧍 ตำแหน่งของคุณ</b>");
                         map.flyTo([userLat, userLng], 15);
                     }
                 },
-                (error) => {
-                    console.warn("ไม่สามารถดึงตำแหน่งผู้ใช้ได้ โปรดตรวจสอบการอนุญาต GPS");
-                },
-                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+                (err) => console.warn("ไม่สามารถดึงตำแหน่งได้"), { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
             );
         }
 
-        // เมื่อกดปุ่ม "เป้าเล็ง" ให้เลื่อนแผนที่ไปหาตำแหน่งของฉัน
         document.getElementById('locateBtn').addEventListener('click', () => {
-            if (userLat && userLng) {
-                map.flyTo([userLat, userLng], 16, { animate: true, duration: 1 });
-            } else {
-                alert("กำลังค้นหาตำแหน่งของคุณ โปรดตรวจสอบว่าเปิด GPS หรือยัง");
-            }
+            if (userLat && userLng) map.flyTo([userLat, userLng], 16, { animate: true, duration: 1 });
+            else alert("กำลังค้นหาตำแหน่ง หรือคุณอาจยังไม่เปิด GPS");
         });
 
         // ==========================================
-        // 2. ระบบเส้นทาง (Routes)
+        // 2. ระบบเส้นทาง (Routes) & เก็บข้อมูลไว้ทำ Dummy
         // ==========================================
         let routeLayers = L.layerGroup().addTo(map);
+        let cachedRoutes = {}; // เก็บเส้นทางไว้ใช้ตอนเปิดโหมด Dummy
+
         onValue(ref(db, 'routes'), (snapshot) => {
             routeLayers.clearLayers();
-            const routes = snapshot.val() || {};
-            for (let id in routes) {
-                const route = routes[id];
+            cachedRoutes = snapshot.val() || {};
+            
+            for (let id in cachedRoutes) {
+                const route = cachedRoutes[id];
                 if (route.coords) {
                     const path = route.coords.map(c => [c.lat, c.lng]);
                     L.polyline(path, { color: route.color || '#007bff', weight: 5, opacity: 0.8 })
                      .bindPopup(`<b>เส้นทาง: ${route.name}</b>`).addTo(routeLayers);
                 }
             }
+
+            // ถ้าระบบจำลองเปิดอยู่ และมีการวาดเส้นใหม่ ให้รีสตาร์ทรถจำลองใหม่
+            if (isDummyMode) {
+                stopDummyCars();
+                startDummyCars();
+            }
         });
 
         // ==========================================
-        // 3. ระบบตำแหน่งรถสองแถว (Songthaew Locations)
+        // 3. ระบบตำแหน่งรถจริง (Real Cars)
         // ==========================================
         let markers = {}; 
         
         onValue(ref(db, 'locations'), (snapshot) => {
             const locations = snapshot.val() || {};
-            
             for (let driverId in markers) {
-                if (!locations[driverId]) {
-                    map.removeLayer(markers[driverId]);
-                    delete markers[driverId];
-                }
+                if (!locations[driverId]) { map.removeLayer(markers[driverId]); delete markers[driverId]; }
             }
-            
             for (let driverId in locations) {
                 const data = locations[driverId];
                 const { lat, lng, timestamp, routeName, carNumber } = data;
-                
                 const isOffline = (Date.now() - timestamp) > (15 * 60 * 1000);
 
                 if (!isOffline) {
@@ -202,11 +190,76 @@
                         markers[driverId] = L.marker([lat, lng], { icon: customIcon }).addTo(map);
                     }
                 } else if (markers[driverId]) {
-                    map.removeLayer(markers[driverId]);
-                    delete markers[driverId];
+                    map.removeLayer(markers[driverId]); delete markers[driverId];
                 }
             }
         });
+
+        // ==========================================
+        // 4. ระบบรถจำลอง (Dummy Mode)
+        // ==========================================
+        let isDummyMode = false;
+        let dummyMarkers = {};
+        let dummyIntervals = {};
+
+        const dummyToggle = document.getElementById('dummyToggle');
+        
+        dummyToggle.addEventListener('change', (e) => {
+            isDummyMode = e.target.checked;
+            if (isDummyMode) {
+                startDummyCars();
+            } else {
+                stopDummyCars();
+            }
+        });
+
+        function startDummyCars() {
+            for (let id in cachedRoutes) {
+                const route = cachedRoutes[id];
+                if (!route.coords || route.coords.length < 2) continue;
+
+                let currentIndex = 0;
+                const path = route.coords;
+                const labelText = `[จำลอง] ${route.name}`;
+
+                // สร้างไอคอนสีส้มสำหรับรถ Dummy
+                const dummyIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="marker-label" style="background-color:rgba(255, 152, 0, 0.9);">${labelText}</div><div class="dummy-marker"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                // สร้าง Marker วางไว้ที่จุดเริ่มต้นของเส้นทาง
+                dummyMarkers[id] = L.marker([path[0].lat, path[0].lng], { icon: dummyIcon }).addTo(map);
+
+                // สั่งให้ขยับพิกัดไปตามจุดต่างๆ ของเส้นทาง ทุกๆ 800 มิลลิวินาที (0.8 วินาที)
+                dummyIntervals[id] = setInterval(() => {
+                    currentIndex++;
+                    // ถ้าวิ่งสุดสายแล้ว ให้วนกลับมาเริ่มต้นใหม่
+                    if (currentIndex >= path.length) currentIndex = 0; 
+                    
+                    const nextLat = path[currentIndex].lat;
+                    const nextLng = path[currentIndex].lng;
+                    dummyMarkers[id].setLatLng([nextLat, nextLng]);
+                }, 800); 
+            }
+        }
+
+        function stopDummyCars() {
+            // ลบ Interval การวิ่ง
+            for (let id in dummyIntervals) {
+                clearInterval(dummyIntervals[id]);
+            }
+            dummyIntervals = {};
+
+            // ลบจุดจำลองออกจากแผนที่
+            for (let id in dummyMarkers) {
+                map.removeLayer(dummyMarkers[id]);
+            }
+            dummyMarkers = {};
+        }
+
     </script>
 </body>
 </html>
