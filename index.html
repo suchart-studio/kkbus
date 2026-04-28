@@ -19,14 +19,12 @@
         .info-panel h3 { margin: 0 0 5px 0; font-size: 16px; font-weight: bold; }
         .info-panel p { margin: 0 0 10px 0; font-size: 14px; color: #666; }
 
-        /* สวิตช์เปิด/ปิด Dummy Mode */
         .toggle-container {
             display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: bold; color: #ff9800;
             background: #fff3e0; padding: 8px 10px; border-radius: 6px; border: 1px solid #ffe0b2;
         }
         .toggle-switch { cursor: pointer; width: 16px; height: 16px; }
 
-        /* ปุ่มกลับไปตำแหน่งของฉัน */
         .locate-btn {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
             background: white; border: 2px solid #ccc; border-radius: 50%;
@@ -35,7 +33,6 @@
         }
         .locate-btn:hover { background: #f0f0f0; transform: scale(1.05); }
 
-        /* ป้ายชื่อรถ */
         .marker-label { 
             position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); 
             background-color: rgba(30, 30, 30, 0.85); color: #fff; padding: 4px 10px; 
@@ -77,7 +74,7 @@
         
         <div class="toggle-container">
             <input type="checkbox" id="dummyToggle" class="toggle-switch">
-            <label for="dummyToggle" style="cursor: pointer;">เปิดระบบรถจำลอง (Dummy)</label>
+            <label for="dummyToggle" style="cursor: pointer;">เปิดโหมด Demo</label>
         </div>
     </div>
 
@@ -110,7 +107,7 @@
         }).addTo(map);
 
         // ==========================================
-        // 1. ระบบพิกัดผู้ใช้งาน (User Location)
+        // 1. ระบบพิกัดผู้ใช้งาน
         // ==========================================
         const userIcon = L.divIcon({ className: 'custom-div-icon', html: "<div class='user-marker'></div>", iconSize: [22, 22], iconAnchor: [11, 11] });
         let userMarker = null; let userLat = null; let userLng = null;
@@ -135,10 +132,10 @@
         });
 
         // ==========================================
-        // 2. ระบบเส้นทาง (Routes) & เก็บข้อมูลไว้ทำ Dummy
+        // 2. ดึงเส้นทาง (Routes) จาก Firebase
         // ==========================================
         let routeLayers = L.layerGroup().addTo(map);
-        let cachedRoutes = {}; // เก็บเส้นทางไว้ใช้ตอนเปิดโหมด Dummy
+        let cachedRoutes = {}; 
 
         onValue(ref(db, 'routes'), (snapshot) => {
             routeLayers.clearLayers();
@@ -153,7 +150,6 @@
                 }
             }
 
-            // ถ้าระบบจำลองเปิดอยู่ และมีการวาดเส้นใหม่ ให้รีสตาร์ทรถจำลองใหม่
             if (isDummyMode) {
                 stopDummyCars();
                 startDummyCars();
@@ -161,7 +157,7 @@
         });
 
         // ==========================================
-        // 3. ระบบตำแหน่งรถจริง (Real Cars)
+        // 3. แสดงตำแหน่งรถที่วิ่งจริงๆ 
         // ==========================================
         let markers = {}; 
         
@@ -196,33 +192,33 @@
         });
 
         // ==========================================
-        // 4. ระบบรถจำลอง (Dummy Mode)
+        // 4. ระบบจำลองการเคลื่อนที่แบบ Smooth (Dummy Mode)
         // ==========================================
         let isDummyMode = false;
         let dummyMarkers = {};
         let dummyIntervals = {};
 
-        const dummyToggle = document.getElementById('dummyToggle');
-        
-        dummyToggle.addEventListener('change', (e) => {
+        document.getElementById('dummyToggle').addEventListener('change', (e) => {
             isDummyMode = e.target.checked;
-            if (isDummyMode) {
-                startDummyCars();
-            } else {
-                stopDummyCars();
-            }
+            if (isDummyMode) startDummyCars();
+            else stopDummyCars();
         });
 
         function startDummyCars() {
+            // ตั้งค่าความเร็วของรถจำลอง: 30 กม./ชม.
+            const speedKmh = 30; 
+            const speedMs = speedKmh * 1000 / 3600; // แปลงเป็น เมตร/วินาที
+            const fps = 30; // อัปเดตทุก 30 มิลลิวินาที (ลื่นไหลเหมือนวิดีโอ)
+            const stepMeters = speedMs * (fps / 1000); // ระยะทางที่เคลื่อนที่ได้ต่อ 1 เฟรม
+
             for (let id in cachedRoutes) {
                 const route = cachedRoutes[id];
                 if (!route.coords || route.coords.length < 2) continue;
 
-                let currentIndex = 0;
                 const path = route.coords;
-                const labelText = `[จำลอง] ${route.name}`;
+                // เนียนเปลี่ยนป้ายชื่อให้เป็นเสมือนรถจริง
+                const labelText = `${route.name} - 01`;
 
-                // สร้างไอคอนสีส้มสำหรับรถ Dummy
                 const dummyIcon = L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div class="marker-label" style="background-color:rgba(255, 152, 0, 0.9);">${labelText}</div><div class="dummy-marker"></div>`,
@@ -230,33 +226,52 @@
                     iconAnchor: [10, 10]
                 });
 
-                // สร้าง Marker วางไว้ที่จุดเริ่มต้นของเส้นทาง
                 dummyMarkers[id] = L.marker([path[0].lat, path[0].lng], { icon: dummyIcon }).addTo(map);
 
-                // สั่งให้ขยับพิกัดไปตามจุดต่างๆ ของเส้นทาง ทุกๆ 800 มิลลิวินาที (0.8 วินาที)
+                // สร้าง State สำหรับจดจำตำแหน่งปัจจุบันของรถคันนี้
+                let state = {
+                    currentIndex: 0,
+                    segmentProgress: 0 // ระยะทางที่วิ่งไปแล้วในเส้นเชื่อมระหว่างจุด 2 จุด
+                };
+
+                // ลูปขยับพิกัดแบบ Smooth
                 dummyIntervals[id] = setInterval(() => {
-                    currentIndex++;
-                    // ถ้าวิ่งสุดสายแล้ว ให้วนกลับมาเริ่มต้นใหม่
-                    if (currentIndex >= path.length) currentIndex = 0; 
-                    
-                    const nextLat = path[currentIndex].lat;
-                    const nextLng = path[currentIndex].lng;
-                    dummyMarkers[id].setLatLng([nextLat, nextLng]);
-                }, 800); 
+                    let p1 = path[state.currentIndex];
+                    let nextIndex = (state.currentIndex + 1) % path.length;
+                    let p2 = path[nextIndex];
+
+                    // คำนวณระยะทางระหว่างจุด 2 จุด
+                    let dist = map.distance([p1.lat, p1.lng], [p2.lat, p2.lng]);
+
+                    // บวกระยะทางเดินหน้า
+                    state.segmentProgress += stepMeters;
+
+                    // ถ้ารถวิ่งเกินความยาวของเส้นปัจจุบัน ให้สลับไปเส้นต่อไป
+                    while (state.segmentProgress >= dist) {
+                        state.segmentProgress -= dist;
+                        state.currentIndex = nextIndex;
+                        nextIndex = (state.currentIndex + 1) % path.length;
+                        
+                        p1 = path[state.currentIndex];
+                        p2 = path[nextIndex];
+                        dist = map.distance([p1.lat, p1.lng], [p2.lat, p2.lng]);
+                    }
+
+                    // หาพิกัด (Lat/Lng) แทรกกลางระหว่าง 2 จุด ด้วยคณิตศาสตร์
+                    let ratio = dist === 0 ? 0 : state.segmentProgress / dist;
+                    let currentLat = p1.lat + (p2.lat - p1.lat) * ratio;
+                    let currentLng = p1.lng + (p2.lng - p1.lng) * ratio;
+
+                    dummyMarkers[id].setLatLng([currentLat, currentLng]);
+
+                }, fps);
             }
         }
 
         function stopDummyCars() {
-            // ลบ Interval การวิ่ง
-            for (let id in dummyIntervals) {
-                clearInterval(dummyIntervals[id]);
-            }
+            for (let id in dummyIntervals) clearInterval(dummyIntervals[id]);
             dummyIntervals = {};
-
-            // ลบจุดจำลองออกจากแผนที่
-            for (let id in dummyMarkers) {
-                map.removeLayer(dummyMarkers[id]);
-            }
+            for (let id in dummyMarkers) map.removeLayer(dummyMarkers[id]);
             dummyMarkers = {};
         }
 
